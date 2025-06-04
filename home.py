@@ -906,138 +906,153 @@ def main_app():
                 student_summary.columns = ['ID', 'Student Name', 'Class Category', 'Unpaid Months']
                 
                 # Calculate total outstanding per student
-            student_outstanding = merged[merged['Status'] == 'Unpaid'].groupby(
-                ['ID', 'Student Name', 'Class Category']
-            )['Monthly Fee_y'].sum().reset_index()
-            student_outstanding.columns = ['ID', 'Student Name', 'Class Category', 'Total Outstanding']
-            
-            # Merge the data
-            student_summary = pd.merge(student_summary, student_outstanding, 
-                                     on=['ID', 'Student Name', 'Class Category'],
-                                     how='left').fillna(0)
-            
-            # Display summary
-            st.dataframe(
-                student_summary.style.format({'Total Outstanding': format_currency}),
-                use_container_width=True
-            )
-            
-            # Download all data
-            csv = merged[['Student Name', 'Class Category', 'Month', 'Monthly Fee_y', 
-                         'Received Amount', 'Outstanding', 'Status']]\
-                  .rename(columns={'Monthly Fee_y': 'Monthly Fee'})\
-                  .to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="📥 Download Complete Payment Records",
-                data=csv,
-                file_name="complete_payment_records.csv",
-                mime="text/csv"
-            )
+                student_outstanding = merged[merged['Status'] == 'Unpaid'].groupby(
+                    ['ID', 'Student Name', 'Class Category']
+                )['Monthly Fee_y'].sum().reset_index()
+                student_outstanding.columns = ['ID', 'Student Name', 'Class Category', 'Total Outstanding']
+                
+                # Merge the data
+                student_summary = pd.merge(student_summary, student_outstanding, 
+                                         on=['ID', 'Student Name', 'Class Category'],
+                                         how='left').fillna(0)
+                
+                # Display summary
+                st.dataframe(
+                    student_summary.style.format({'Total Outstanding': format_currency}),
+                    use_container_width=True
+                )
+                
+                # Download all data
+                csv = merged[['Student Name', 'Class Category', 'Month', 'Monthly Fee_y', 
+                             'Received Amount', 'Outstanding', 'Status']]\
+                      .rename(columns={'Monthly Fee_y': 'Monthly Fee'})\
+                      .to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📥 Download Complete Payment Records",
+                    data=csv,
+                    file_name="complete_payment_records.csv",
+                    mime="text/csv"
+                )
         
     elif menu == "Student Yearly Report":
-        st.header("📊 Student Yearly Fee Report")
-        
-        df = load_data()
-        if df.empty:
-            st.info("No fee records found")
-        else:
-            # Step 1: Show all classes with records
-            all_classes = sorted(df['Class Category'].unique())
-            selected_class = st.selectbox("Select Class", all_classes, key="class_selector")
+        if st.session_state.is_admin:
+            st.header("📊 Student Yearly Fee Report")
             
-            # Step 2: Show all students in selected class
-            class_students = sorted(df[df['Class Category'] == selected_class]['Student Name'].unique())
-            
-            if not class_students:
-                st.warning(f"No students found in {selected_class}")
+            df = load_data()
+            if df.empty:
+                st.info("No fee records found")
             else:
-                selected_student = st.selectbox("Select Student", class_students, key="student_selector")
+                # Step 1: Show all classes with records
+                all_classes = sorted(df['Class Category'].unique())
+                selected_class = st.selectbox("Select Class", all_classes, key="class_selector")
                 
-                # Step 3: Show yearly report for selected student
-                student_data = df[(df['Student Name'] == selected_student) & 
-                                (df['Class Category'] == selected_class)]
+                # Step 2: Show all students in selected class
+                class_students = sorted(df[df['Class Category'] == selected_class]['Student Name'].unique())
                 
-                if student_data.empty:
-                    st.warning(f"No records found for {selected_student} in {selected_class}")
+                if not class_students:
+                    st.warning(f"No students found in {selected_class}")
                 else:
-                    # Display student info
-                    st.subheader(f"Yearly Report for {selected_student}")
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.write(f"**Class:** {selected_class}")
-                    with col2:
-                        section = student_data.iloc[0]['Class Section'] if 'Class Section' in student_data.columns else 'N/A'
-                        st.write(f"**Section:** {section if pd.notna(section) else 'N/A'}")
+                    selected_student = st.selectbox("Select Student", class_students, key="student_selector")
                     
-                    # Yearly summary
-                    st.subheader("Fee Summary")
+                    # Step 3: Show yearly report for selected student
+                    student_data = df[(df['Student Name'] == selected_student) & 
+                                    (df['Class Category'] == selected_class)]
                     
-                    
-                    # Calculate totals
-                    total_monthly_fee = student_data['Monthly Fee'].sum()
-                    annual_charges = student_data['Annual Charges'].iloc[0] if 'Annual Charges' in student_data.columns else 0
-                    admission_fee = student_data['Admission Fee'].iloc[0] if 'Admission Fee' in student_data.columns else 0
-                    total_received = student_data['Received Amount'].sum()
-                    
-                    # Display totals
-                    col1, col2, col3, col4 = st.columns(4)
-                    with col1:
-                        st.metric("Total Monthly Fee", format_currency(total_monthly_fee))
-                    with col2:
-                        st.metric("Annual Charges", format_currency(annual_charges))
-                    with col3:
-                        st.metric("Admission Fee", format_currency(admission_fee))
-                    with col4:
-                        st.metric("Total Received", format_currency(total_received))
-                    
-                    # Monthly fee details
-                    st.subheader("Monthly Fee Details")
-                    
-                    all_months = [
-                        "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER",
-                        "OCTOBER", "NOVEMBER", "DECEMBER", "JANUARY", "FEBRUARY", "MARCH"
-                    ]
-                    
-                    monthly_report = pd.DataFrame({'Month': all_months})
-                    monthly_data = student_data.groupby('Month').agg({
-                        'Monthly Fee': 'sum',
-                        'Received Amount': 'sum'
-                    }).reset_index()
-                    
-                    monthly_report = monthly_report.merge(monthly_data, on='Month', how='left').fillna(0)
-                    monthly_report['Status'] = monthly_report.apply(
-                        lambda row: 'Paid' if row['Monthly Fee'] > 0 else 'Unpaid', 
-                        axis=1
-                    )
-                    
-                    def color_unpaid(val):
-                        if val == 'Unpaid':
-                            return 'color: red'
-                        return ''
-                    
-                    st.dataframe(
-                        monthly_report.style
-                        .applymap(color_unpaid, subset=['Status'])
-                        .format({
-                            'Monthly Fee': format_currency,
-                            'Received Amount': format_currency
-                        }),
-                        use_container_width=True
-                    )
-                    
-                    # Visualizations
-                    st.subheader("Payment Trends")
-                    st.line_chart(monthly_report.set_index('Month')[['Monthly Fee', 'Received Amount']])
-                    
-                    # Download student report
-                    st.divider()
-                    csv = monthly_report.to_csv(index=False).encode('utf-8')
-                    st.download_button(
-                        label="📥 Download Student Report",
-                        data=csv,
-                        file_name=f"{selected_student}_fee_report.csv",
-                        mime="text/csv"
-                    )
+                    if student_data.empty:
+                        st.warning(f"No records found for {selected_student} in {selected_class}")
+                    else:
+                        # Display student info
+                        st.subheader(f"Yearly Report for {selected_student}")
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.write(f"**Class:** {selected_class}")
+                        with col2:
+                            section = student_data.iloc[0]['Class Section'] if 'Class Section' in student_data.columns else 'N/A'
+                            st.write(f"**Section:** {section if pd.notna(section) else 'N/A'}")
+                        
+                        # Yearly summary
+                        st.subheader("Fee Summary")
+                        
+                        # Calculate totals
+                        total_monthly_fee = student_data['Monthly Fee'].sum()
+                        annual_charges = student_data['Annual Charges'].sum()  # Sum of all annual charges
+                        admission_fee = student_data['Admission Fee'].sum()  # Sum of all admission fees
+                        total_received = student_data['Received Amount'].sum()
+                        
+                        # Display totals
+                        col1, col2, col3, col4 = st.columns(4)
+                        with col1:
+                            st.metric("Total Monthly Fee", format_currency(total_monthly_fee))
+                        with col2:
+                            st.metric("Annual Charges", format_currency(annual_charges))
+                        with col3:
+                            st.metric("Admission Fee", format_currency(admission_fee))
+                        with col4:
+                            st.metric("Total Received", format_currency(total_received))
+                        
+                        # Display total fees breakdown
+                        st.write("### Total Fees Breakdown")
+                        st.write(f"- **Monthly Fees:** {format_currency(total_monthly_fee)}")
+                        st.write(f"- **Annual Charges:** {format_currency(annual_charges)}")
+                        st.write(f"- **Admission Fees:** {format_currency(admission_fee)}")
+                        st.write(f"- **Total Fees Due:** {format_currency(total_monthly_fee + annual_charges + admission_fee)}")
+                        st.write(f"- **Total Amount Received:** {format_currency(total_received)}")
+                        st.write(f"- **Balance Due:** {format_currency((total_monthly_fee + annual_charges + admission_fee) - total_received)}")
+                        
+                        # Monthly fee details
+                        st.subheader("Monthly Fee Details")
+                        
+                        all_months = [
+                            "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER",
+                            "OCTOBER", "NOVEMBER", "DECEMBER", "JANUARY", "FEBRUARY", "MARCH"
+                        ]
+                        
+                        monthly_report = pd.DataFrame({'Month': all_months})
+                        monthly_data = student_data.groupby('Month').agg({
+                            'Monthly Fee': 'sum',
+                            'Annual Charges': 'sum',
+                            'Admission Fee': 'sum',
+                            'Received Amount': 'sum'
+                        }).reset_index()
+                        
+                        monthly_report = monthly_report.merge(monthly_data, on='Month', how='left').fillna(0)
+                        monthly_report['Status'] = monthly_report.apply(
+                            lambda row: 'Paid' if row['Monthly Fee'] > 0 else 'Unpaid', 
+                            axis=1
+                        )
+                        
+                        def color_unpaid(val):
+                            if val == 'Unpaid':
+                                return 'color: red'
+                            return ''
+                        
+                        st.dataframe(
+                            monthly_report.style
+                            .applymap(color_unpaid, subset=['Status'])
+                            .format({
+                                'Monthly Fee': format_currency,
+                                'Annual Charges': format_currency,
+                                'Admission Fee': format_currency,
+                                'Received Amount': format_currency
+                            }),
+                            use_container_width=True
+                        )
+                        
+                        # Visualizations
+                        st.subheader("Payment Trends")
+                        st.line_chart(monthly_report.set_index('Month')[['Monthly Fee', 'Received Amount']])
+                        
+                        # Download student report
+                        st.divider()
+                        csv = monthly_report.to_csv(index=False).encode('utf-8')
+                        st.download_button(
+                            label="📥 Download Student Report",
+                            data=csv,
+                            file_name=f"{selected_student}_fee_report.csv",
+                            mime="text/csv"
+                        )
+        else:
+            st.warning("⚠️ You don't have permission to access this page")
 
     elif menu == "User Management":
         if st.session_state.is_admin:
