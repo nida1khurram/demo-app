@@ -504,6 +504,12 @@ def user_management():
                         st.info(f"New password: {new_password}")
         except Exception as e:
             st.error(f"Error resetting password: {str(e)}")
+    
+#     elif menu == "View All Records":
+        
+
+    
+    
 
 def main_app():
     """Main application after login"""
@@ -522,11 +528,11 @@ def main_app():
         st.session_state.show_login = False
         st.rerun()
     
-    # Define menu options based on user role
+    # Modified menu options based on user role
     if st.session_state.is_admin:
-        menu_options = ["Enter Fees", "View All Records", "Paid & Unpaid Students Record", "Student Yearly Report", "User Management", "Set Monthly Fees"]
+        menu_options = ["Enter Fees", "View All Records", "Paid & Unpaid Students Record", "Student Yearly Report","Set Monthly Fee", "User Management"]
     else:
-        menu_options = ["Enter Fees"]  # Non-admin users can only access Enter Fees
+        menu_options = ["Enter Fees"]  # Regular users only see "Enter Fees"
     
     menu = st.sidebar.selectbox("Menu", menu_options)
     
@@ -552,46 +558,17 @@ def main_app():
                 class_category = st.selectbox("Class Category*", CLASS_CATEGORIES)
                 class_section = st.text_input("Class Section", placeholder="A, B, etc. (if applicable)")
             
-            # Load existing data to check paid months
-            df = load_data()
-            
-            # Get paid months for this student if they exist
-            paid_months = []
-            if student_name and class_category:
-                student_records = df[(df['Student Name'] == student_name) & 
-                                   (df['Class Category'] == class_category)]
-                paid_months = student_records['Month'].unique().tolist()
-            
-            # Filter out paid months from available options
-            available_months = [m for m in months if m not in paid_months]
-            
-            if not available_months:
-                st.warning("This student has already paid fees for all months!")
-                selected_month = None
-            else:
-                selected_month = st.selectbox("Select Month*", available_months)
+            selected_month = st.selectbox("Select Month*", months)
             
             col3, col4 = st.columns(2)
             with col3:
-                # Get the standard monthly fee for this class if set by admin
-                monthly_fee = 0
-                if os.path.exists("monthly_fees.json"):
-                    with open("monthly_fees.json", "r") as f:
-                        monthly_fees = json.load(f)
-                        monthly_fee = monthly_fees.get(class_category, 0)
-                
-                # Display monthly fee (editable only by admin)
-                if st.session_state.is_admin:
-                    monthly_fee = st.number_input("Monthly Fee", min_value=0, value=monthly_fee, key="monthly_fee")
-                else:
-                    st.text_input("Monthly Fee", value=format_currency(monthly_fee), disabled=True)
-                
+                monthly_fee = st.number_input("Monthly Fee", min_value=0, value=0, key="monthly_fee")
                 annual_charges = st.number_input("Annual Charges", min_value=0, value=0, key="annual_charges")
             with col4:
                 admission_fee = st.number_input("Admission Fee", min_value=0, value=0, key="admission_fee")
-                # Calculate total amount (only monthly fee should be included in the total)
-                total_amount = monthly_fee  # Only monthly fee goes in the total
-                st.text_input("Monthly Amount", value=format_currency(total_amount), disabled=True)
+                # Calculate total amount automatically
+                total_amount = monthly_fee + annual_charges + admission_fee
+                st.text_input("Total Amount", value=format_currency(total_amount), disabled=True)
                 received_amount = st.number_input("Received Amount*", min_value=0, value=total_amount, key="received_amount")
             
             payment_date = st.date_input("Payment Date", value=datetime.now())
@@ -600,7 +577,7 @@ def main_app():
             submitted = st.form_submit_button("💾 Save Fee Record")
             
             if submitted:
-                if not student_name or not class_category or not signature or not selected_month:
+                if not student_name or not class_category or not signature:
                     st.error("Please fill all required fields (*)")
                 else:
                     student_id = generate_student_id(student_name, class_category)
@@ -622,56 +599,10 @@ def main_app():
                     if save_to_csv(fee_data):
                         st.success("✅ Fee record saved successfully!")
                         st.balloons()
+        
     
-    elif menu == "Set Monthly Fees":
-        if st.session_state.is_admin:
-            st.header("💰 Set Standard Monthly Fees by Class")
-            
-            # Load existing fees if they exist
-            if os.path.exists("monthly_fees.json"):
-                with open("monthly_fees.json", "r") as f:
-                    monthly_fees = json.load(f)
-            else:
-                monthly_fees = {category: 0 for category in CLASS_CATEGORIES}
-            
-            # Create a form to set fees for each class
-            with st.form("monthly_fees_form"):
-                st.write("Set the standard monthly fee for each class:")
-                
-                # Create two columns for better layout
-                col1, col2 = st.columns(2)
-                
-                fee_values = {}
-                for i, category in enumerate(CLASS_CATEGORIES):
-                    # Alternate between columns
-                    if i % 2 == 0:
-                        with col1:
-                            fee_values[category] = st.number_input(
-                                f"{category} Fee",
-                                min_value=0,
-                                value=monthly_fees.get(category, 0),
-                                key=f"fee_{category}"
-                            )
-                    else:
-                        with col2:
-                            fee_values[category] = st.number_input(
-                                f"{category} Fee",
-                                min_value=0,
-                                value=monthly_fees.get(category, 0),
-                                key=f"fee_{category}"
-                            )
-                
-                submitted = st.form_submit_button("💾 Save Monthly Fees")
-                
-                if submitted:
-                    # Save the fees to a JSON file
-                    with open("monthly_fees.json", "w") as f:
-                        json.dump(fee_values, f)
-                    st.success("✅ Monthly fees saved successfully!")
-        else:
-            st.warning("⚠️ You don't have permission to access this page")
-    
-    elif menu == "View All Records":
+    # All other menu options are only available to admin users
+    elif menu == "View All Records" and st.session_state.is_admin:
         if st.session_state.is_admin:
             st.header("👀 View All Fee Records")
             
@@ -801,8 +732,8 @@ def main_app():
                 )
         else:
             st.warning("⚠️ You don't have permission to access this page")
-
-    elif menu == "Paid & Unpaid Students Record":
+    
+    elif menu == "Paid & Unpaid Students Record" and st.session_state.is_admin:
         if st.session_state.is_admin:
             st.header("✅ Paid & ❌ Unpaid Students Record")
             df = load_data()
@@ -934,7 +865,8 @@ def main_app():
                     mime="text/csv"
                 )
         
-    elif menu == "Student Yearly Report":
+    
+    elif menu == "Student Yearly Report" and st.session_state.is_admin:
         if st.session_state.is_admin:
             st.header("📊 Student Yearly Fee Report")
             
@@ -1054,11 +986,70 @@ def main_app():
         else:
             st.warning("⚠️ You don't have permission to access this page")
 
-    elif menu == "User Management":
+    elif menu == "Set Monthly Fees"  and st.session_state.is_admin:
+        if st.session_state.is_admin:
+            st.header("💰 Set Standard Monthly Fees by Class")
+            
+            # Load existing fees if they exist
+            if os.path.exists("monthly_fees.json"):
+                with open("monthly_fees.json", "r") as f:
+                    monthly_fees = json.load(f)
+            else:
+                monthly_fees = {category: 0 for category in CLASS_CATEGORIES}
+            
+            # Create a form to set fees for each class
+            with st.form("monthly_fees_form"):
+                st.write("Set the standard monthly fee for each class:")
+                
+                # Create two columns for better layout
+                col1, col2 = st.columns(2)
+                
+                fee_values = {}
+                for i, category in enumerate(CLASS_CATEGORIES):
+                    # Alternate between columns
+                    if i % 2 == 0:
+                        with col1:
+                            fee_values[category] = st.number_input(
+                                f"{category} Fee",
+                                min_value=0,
+                                value=monthly_fees.get(category, 0),
+                                key=f"fee_{category}"
+                            )
+                    else:
+                        with col2:
+                            fee_values[category] = st.number_input(
+                                f"{category} Fee",
+                                min_value=0,
+                                value=monthly_fees.get(category, 0),
+                                key=f"fee_{category}"
+                            )
+                
+                submitted = st.form_submit_button("💾 Save Monthly Fees")
+                
+                if submitted:
+                    # Save the fees to a JSON file
+                    with open("monthly_fees.json", "w") as f:
+                        json.dump(fee_values, f)
+                    st.success("✅ Monthly fees saved successfully!")
+        else:
+            st.warning("⚠️ You don't have permission to access this page")
+
+    elif menu == "User Management" and st.session_state.is_admin:
         if st.session_state.is_admin:
             user_management()
         else:
             st.warning("⚠️ You don't have permission to access this page")
+    
+    # Add a message for regular users if they try to access restricted pages
+    elif not st.session_state.is_admin:
+        st.warning("⚠️ You only have permission to access the 'Enter Fees' section. Please contact an administrator for full access.")
+        if st.session_state.is_admin:
+            menu_options = ["Enter Fees", "View All Records", "Paid & Unpaid Students Record", "Student Yearly Report", "User Management"]
+        else:
+            menu_options = ["Enter Fees"]  # Regular users only see "Enter Fees"
+
+
+   
 
 def main():
     initialize_files()
