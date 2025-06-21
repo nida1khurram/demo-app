@@ -122,7 +122,7 @@ def create_user(username, password, email, is_admin=False):
                 return False, "Email already in use"
         
         trial_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        trial_end = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
+        trial_end = (datetime.now() + timedelta(days=3)).strftime("%Y-%m-%d %H:%M:%S")
         
         users[username] = {
             "password": hash_password(password),
@@ -444,7 +444,8 @@ def home_page():
     )
     st.markdown('</div>', unsafe_allow_html=True)
     
-    st.markdown('<h1 class="title-text">School Fees Management System</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="title-text">British School of Karachi </h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="title-text">Fees Management System</h1>', unsafe_allow_html=True)
     st.markdown('<p class="subtitle-text">Streamline your school\'s fee collection and tracking process with a 1-month free trial!</p>', unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns(3)
