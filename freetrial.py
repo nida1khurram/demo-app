@@ -1,4 +1,5 @@
 # type:ignore
+# https://freetrial-fee.streamlit.app/
 import streamlit as st
 from datetime import datetime, timedelta
 import os
@@ -9,6 +10,17 @@ import json
 from PIL import Image
 import base64
 import re
+
+# Hide the GitHub link in the top right corner
+hide_github_link = """
+<style>
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+header {visibility: hidden;}
+</style>
+"""
+st.markdown(hide_github_link, unsafe_allow_html=True)
+
 
 # Initialize or load files
 CSV_FILE = "fees_data.csv"
